@@ -69,6 +69,12 @@ if (!class_exists('WC_AOP_Order')) :
                     'last_name' => $order->get_billing_last_name(),
                     'email' => $order->get_billing_email(),
                     'phone' => $order->get_billing_phone(),
+                    'order_date' => [
+                        'date_created' => $order->get_date_created(),
+                        'date_modified' => $order->get_date_modified(),
+                        'date_completed' => $order->get_date_completed(),
+                        'date_paid' => $order->get_date_paid(),
+                    ],
                     'billing_address' => [
                         'address_line_1' => $order->get_billing_address_1(),
                         'address_line_2' => $order->get_billing_address_2(),
