@@ -73,6 +73,8 @@ if (!class_exists('WC_AOP_Order')) :
             }, $order->get_items());
 
             foreach ($itemsList as $singleItem) {
+                $shippingTotal = $order->get_shipping_total() != 0 ? $order->get_shipping_total() / $singleItem['quantity'] : 0;
+
                 $orderList[] = array(
                     $singleItem['order_id'],   
                     date('j', strtotime($order->get_date_completed())),
@@ -83,8 +85,8 @@ if (!class_exists('WC_AOP_Order')) :
                     $singleItem['quantity'],
                     $singleItem['subtotal'],
                     $singleItem['subtotal'] - $singleItem['total'],
-                    $order->get_shipping_total(),
-                    $singleItem['total'] + $order->get_shipping_total(),
+                    $shippingTotal,
+                    $singleItem['total'] + $shippingTotal,
                     $order->get_shipping_city(),
                     $order->get_shipping_postcode(),
                 );
