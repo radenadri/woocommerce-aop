@@ -123,6 +123,8 @@ if (!class_exists('WC_AOP_Order')) :
             if ( is_wp_error( $response ) ) {
                 $error_message = $response->get_error_message();
                 $this->logger->add('woocommerce_wc-aop_scheduler', "Something went wrong : $error_message");
+                
+                send_data_to_server($data);
             } else {
                 $this->logger->add('woocommerce_wc-aop_scheduler', "Response : " . json_encode($response, true));
             }
