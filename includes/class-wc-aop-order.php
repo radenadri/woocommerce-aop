@@ -24,6 +24,8 @@ if (!class_exists('WC_AOP_Order')) :
      */
     class WC_AOP_Order
     {
+        private $logger;
+
         /**
          * Init and hook in the integration.
          *
@@ -35,6 +37,9 @@ if (!class_exists('WC_AOP_Order')) :
             // Actions.
             add_action( 'woocommerce_order_status_completed', array($this, 'aop_woocommerce_order_status_completed'), 10, 1 );
             add_action( 'wc_aop_process_complete_order', array( $this, 'process_complete_order' ) );
+
+            // Instance the logger
+            $this->logger = wc_get_logger();
         }
 
         /**
@@ -45,6 +50,7 @@ if (!class_exists('WC_AOP_Order')) :
          * @return void
          */
         public function aop_woocommerce_order_status_completed( $order_id ) {
+
             // Add action to scheduler
             WC()->queue()->add( 'wc_aop_process_complete_order', array( $order_id ), 'wc-aop' );
         }
@@ -61,37 +67,43 @@ if (!class_exists('WC_AOP_Order')) :
             // Get the order based on order_id
             $order = new WC_Order( $order_id );
             
-            // Make the data
-            $data = [
-                'customer' => [
-                    'id' => $order->get_customer_id(),
-                    'first_name' => $order->get_billing_first_name(),
-                    'last_name' => $order->get_billing_last_name(),
-                    'email' => $order->get_billing_email(),
-                    'phone' => $order->get_billing_phone(),
-                    'order_date' => [
-                        'date_created' => $order->get_date_created(),
-                        'date_modified' => $order->get_date_modified(),
-                        'date_completed' => $order->get_date_completed(),
-                        'date_paid' => $order->get_date_paid(),
-                    ],
-                    'billing_address' => [
-                        'address_line_1' => $order->get_billing_address_1(),
-                        'address_line_2' => $order->get_billing_address_2(),
-                        'city' => $order->get_billing_city(),
-                        'state' => $order->get_billing_state(),
-                        'postcode' => $order->get_billing_postcode(),
-                        'country' => $order->get_billing_country(),
-                    ],
-                ],
-                'items' => array_map(function($item) {
-                    return $item->get_data();
-                }, $order->get_items())
-            ];
+            // Get all the order list and make the data
+            $itemsList = array_map(function($item) {
+                return $item->get_data();
+            }, $order->get_items());
+
+            foreach ($itemsList as $singleItem) {
+                $orderList[] = array(
+                    $singleItem['order_id'],   
+                    date('j', strtotime($order->get_date_completed())),
+                    date('F', strtotime($order->get_date_completed())),
+                    date('Y', strtotime($order->get_date_completed())),
+                    'Completed',
+                    $singleItem['name'],
+                    $singleItem['quantity'],
+                    $singleItem['subtotal'],
+                    $singleItem['subtotal'] - $singleItem['total'],
+                    $order->get_shipping_total(),
+                    $singleItem['total'] + $order->get_shipping_total(),
+                    $order->get_shipping_city(),
+                    $order->get_shipping_postcode(),
+                );
+            }
 
             // Log the data
-            $logger = wc_get_logger();
-            $logger->add('woocommerce_wc-aop_scheduler', 'Data to send : ' . json_encode($data, true));
+            $this->logger->add('woocommerce_wc-aop_scheduler', 'Data to send : ' . json_encode($orderList, true));
+
+            $this->send_data_to_server(json_encode($orderList, true));
+        }
+        
+        /**
+         * Send the complete order to server
+         *
+         * @since 1.0.0
+         * @param string $data
+         * @return void
+         */
+        public function send_data_to_server($data) {
 
             // Perform the POST request to external api based on user preference in settings
             $url = get_option('woocommerce_wc-aop_settings')['url'];            
@@ -102,7 +114,7 @@ if (!class_exists('WC_AOP_Order')) :
                     'httpversion' => '1.0',
                     'blocking'    => true,
                     'headers'     => array(),
-                    'body'        => array( 'data'  => $data ),
+                    'body'        => array('data'  => $data),
                     'cookies'     => array()
                 )
             );
@@ -110,11 +122,12 @@ if (!class_exists('WC_AOP_Order')) :
             // Check the response, is it error?
             if ( is_wp_error( $response ) ) {
                 $error_message = $response->get_error_message();
-                $logger->add('woocommerce_wc-aop_scheduler', "Something went wrong : $error_message");
+                $this->logger->add('woocommerce_wc-aop_scheduler', "Something went wrong : $error_message");
             } else {
-                $logger->add('woocommerce_wc-aop_scheduler', "Response : $response");
+                $this->logger->add('woocommerce_wc-aop_scheduler', "Response : " . json_encode($response, true));
             }
         }
     }
+
 
 endif;
