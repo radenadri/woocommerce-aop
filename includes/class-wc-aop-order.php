@@ -35,34 +35,35 @@ if (!class_exists('WC_AOP_Order')) :
         public function __construct()
         {
             // Actions.
-            add_action( 'woocommerce_order_status_completed', array($this, 'aop_woocommerce_order_status_completed'), 10, 1 );
-            add_action( 'wc_aop_process_complete_order', array( $this, 'process_complete_order' ) );
+            // add_action( 'woocommerce_payment_complete', array($this, 'aop_woocommerce_order_status_processing'), 10, 1 );
+            add_action( 'woocommerce_order_status_processing', array($this, 'aop_woocommerce_order_status_processing'), 10, 1 );
+            add_action( 'wc_aop_process_processing_order', array( $this, 'process_processing_order' ) );
 
             // Instance the logger
             $this->logger = wc_get_logger();
         }
 
         /**
-         * Create the function to handle woocommerce orders when status is completed
+         * Create the function to handle woocommerce orders when status is processing
          *
          * @since 1.0.0
          * @param int $order_id
          * @return void
          */
-        public function aop_woocommerce_order_status_completed( $order_id ) {
+        public function aop_woocommerce_order_status_processing( $order_id ) {
 
             // Add action to scheduler
-            WC()->queue()->add( 'wc_aop_process_complete_order', array( $order_id ), 'wc-aop' );
+            WC()->queue()->add( 'wc_aop_process_processing_order', array( $order_id ), 'wc-aop' );
         }
 
         /**
-         * Process the complete order
+         * Process the processing order
          *
          * @since 1.0.0
          * @param int $order_id
          * @return void
          */
-        public function process_complete_order($order_id)
+        public function process_processing_order($order_id)
         {
             // Get the order based on order_id
             $order = new WC_Order( $order_id );
@@ -72,10 +73,14 @@ if (!class_exists('WC_AOP_Order')) :
                 return $item->get_data();
             }, $order->get_items());
 
+            // Get total item in itemsList
+            $itemsListTotal = count($itemsList);
+
             foreach ($itemsList as $singleItem) {
-                $shippingTotal = $order->get_shipping_total() != 0 ? $order->get_shipping_total() / $singleItem['quantity'] : 0;
+                $shippingTotal = $order->get_shipping_total() != 0 ? $order->get_shipping_total() / $itemsListTotal : 0;
 
                 $orderList[] = array(
+                    $this->get_domain(get_site_url( null, '', 'https' )),
                     $singleItem['order_id'],   
                     date('j', strtotime($order->get_date_completed())),
                     date('F', strtotime($order->get_date_completed())),
@@ -88,7 +93,7 @@ if (!class_exists('WC_AOP_Order')) :
                     $shippingTotal,
                     $singleItem['total'] + $shippingTotal,
                     $order->get_shipping_city(),
-                    $order->get_shipping_postcode(),
+                    $order->get_shipping_postcode()
                 );
             }
 
@@ -116,7 +121,7 @@ if (!class_exists('WC_AOP_Order')) :
                     'httpversion' => '1.0',
                     'blocking'    => true,
                     'headers'     => array(),
-                    'body'        => array('data'  => $data),
+                    'body'        => array('origin' => get_site_url( null, '', 'https' ), 'data'  => $data),
                     'cookies'     => array()
                 )
             );
@@ -124,12 +129,28 @@ if (!class_exists('WC_AOP_Order')) :
             // Check the response, is it error?
             if ( is_wp_error( $response ) ) {
                 $error_message = $response->get_error_message();
-                $this->logger->add('woocommerce_wc-aop_scheduler', "Something went wrong : $error_message");
-                
-                send_data_to_server($data);
+                $this->logger->add('woocommerce_wc-aop_scheduler', "Something went wrong : $error_message");                
             } else {
                 $this->logger->add('woocommerce_wc-aop_scheduler', "Response : " . json_encode($response, true));
             }
+        }
+
+        /**
+         * Parse the complete url, only return the domain name
+         *
+         * @since 1.0.0
+         * @param string $url
+         * @return string
+         */
+        private function get_domain($url) {
+          $pieces = parse_url($url);
+          $domain = isset($pieces['host']) ? $pieces['host'] : $pieces['path'];
+          
+          if (preg_match('/(?P<domain>[a-z0-9][a-z0-9\-]{1,63}\.[a-z\.]{2,6})$/i', $domain, $regs)) {
+            return strstr( $regs['domain'], '.', true );
+          }
+
+          return false;
         }
     }
 
