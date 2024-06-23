@@ -76,7 +76,11 @@ if (!class_exists('WC_AOP_Order')) :
             foreach ($itemsList as $singleItem) {
                 $this->logger->add('woocommerce_wc-aop_scheduler', 'Item : ' . json_encode($singleItem, JSON_UNESCAPED_SLASHES));
 
-                $sku = get_post_meta($singleItem['variation_id'], '_sku', true) ? get_post_meta($singleItem['variation_id'], '_sku', true) : '-';
+                if ($singleItem['variation_id']) {
+                    $product = new WC_Product($item['variation_id']);
+                } else {
+                    $product = new WC_Product($item['product_id']);
+                }
 
                 $orderList[] = array(
                     'SOURCE' => $this->get_domain(get_site_url(null, '', 'https')),
@@ -87,7 +91,7 @@ if (!class_exists('WC_AOP_Order')) :
                     'ADDRESS' => $order->get_billing_address_1() . ' ' . $order->get_billing_address_2(),
                     'ORDER_STATUS' => 'Completed',
                     'PAYMENT_METHOD' => $order->get_payment_method(),
-                    'ITEM_SKU' => $sku,
+                    'ITEM_SKU' => $product->get_sku() ? $product->get_sku() : '-',
                     'ITEM_ID' => $singleItem['product_id'],
                     'ITEM_NAME' => $singleItem['name'],
                     'ITEM_QTY' => $singleItem['quantity'],
