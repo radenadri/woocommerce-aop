@@ -82,9 +82,9 @@ if (!class_exists('WC_AOP_Order')) :
                 $orderList[] = array(
                     $this->get_domain(get_site_url( null, '', 'https' )),
                     $singleItem['order_id'],   
-                    date('j', strtotime($order->get_date_completed())),
-                    date('F', strtotime($order->get_date_completed())),
-                    date('Y', strtotime($order->get_date_completed())),
+                    date('j', strtotime($order->get_date_modified())),
+                    date('F', strtotime($order->get_date_modified())),
+                    date('Y', strtotime($order->get_date_modified())),
                     'Completed',
                     $singleItem['name'],
                     $singleItem['quantity'],
