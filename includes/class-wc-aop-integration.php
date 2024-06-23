@@ -81,9 +81,8 @@ if (!class_exists('WC_AOP_Integration')) :
             if (isset($value) && !filter_var($value, FILTER_VALIDATE_URL)) {
                 WC_Admin_Settings::add_error(esc_html__('Looks like you made a mistake with the URL field. Make sure it\'s an url with the correct format!', 'woocommerce-integration-demo'));
             }
-                
+
             return $value;
-            
         }
     }
 

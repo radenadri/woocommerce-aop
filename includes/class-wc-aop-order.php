@@ -35,9 +35,8 @@ if (!class_exists('WC_AOP_Order')) :
         public function __construct()
         {
             // Actions.
-            // add_action( 'woocommerce_payment_complete', array($this, 'aop_woocommerce_order_status_processing'), 10, 1 );
-            add_action( 'woocommerce_order_status_processing', array($this, 'aop_woocommerce_order_status_processing'), 10, 1 );
-            add_action( 'wc_aop_process_processing_order', array( $this, 'process_processing_order' ) );
+            add_action('woocommerce_order_status_completed', array($this, 'aop_woocommerce_order_status_processing'), 10, 1);
+            add_action('wc_aop_process_processing_order', array($this, 'process_processing_order'));
 
             // Instance the logger
             $this->logger = wc_get_logger();
@@ -50,10 +49,11 @@ if (!class_exists('WC_AOP_Order')) :
          * @param int $order_id
          * @return void
          */
-        public function aop_woocommerce_order_status_processing( $order_id ) {
+        public function aop_woocommerce_order_status_processing($order_id)
+        {
 
             // Add action to scheduler
-            WC()->queue()->add( 'wc_aop_process_processing_order', array( $order_id ), 'wc-aop' );
+            WC()->queue()->add('wc_aop_process_processing_order', array($order_id), 'wc-aop');
         }
 
         /**
@@ -66,43 +66,41 @@ if (!class_exists('WC_AOP_Order')) :
         public function process_processing_order($order_id)
         {
             // Get the order based on order_id
-            $order = new WC_Order( $order_id );
-            
+            $order = new WC_Order($order_id);
+
             // Get all the order list and make the data
-            $itemsList = array_map(function($item) {
+            $itemsList = array_map(function ($item) {
                 return $item->get_data();
             }, $order->get_items());
 
-            // Get total item in itemsList
-            $itemsListTotal = count($itemsList);
-
             foreach ($itemsList as $singleItem) {
-                $shippingTotal = $order->get_shipping_total() != 0 ? $order->get_shipping_total() / $itemsListTotal : 0;
+                $this->logger->add('woocommerce_wc-aop_scheduler', 'Item : ' . json_encode($singleItem, JSON_UNESCAPED_SLASHES));
+
+                $sku = get_post_meta($singleItem['variation_id'], '_sku', true) ? get_post_meta($singleItem['variation_id'], '_sku', true) : '-';
 
                 $orderList[] = array(
-                    $this->get_domain(get_site_url( null, '', 'https' )),
-                    $singleItem['order_id'],   
-                    date('j', strtotime($order->get_date_modified())),
-                    date('F', strtotime($order->get_date_modified())),
-                    date('Y', strtotime($order->get_date_modified())),
-                    'Completed',
-                    $singleItem['name'],
-                    $singleItem['quantity'],
-                    $singleItem['subtotal'],
-                    $singleItem['subtotal'] - $singleItem['total'],
-                    $shippingTotal,
-                    $singleItem['total'] + $shippingTotal,
-                    $order->get_shipping_city(),
-                    $order->get_shipping_postcode()
+                    'SOURCE' => $this->get_domain(get_site_url(null, '', 'https')),
+                    'ORDER_NUMBER' => $singleItem['order_id'],
+                    'FULL_NAME' => $order->get_billing_first_name() . ' ' . $order->get_billing_last_name(),
+                    'EMAIL' => $order->get_billing_email(),
+                    'PHONE' => $order->get_billing_phone(),
+                    'ADDRESS' => $order->get_billing_address_1() . ' ' . $order->get_billing_address_2(),
+                    'ORDER_STATUS' => 'Completed',
+                    'PAYMENT_METHOD' => $order->get_payment_method(),
+                    'ITEM_SKU' => $sku,
+                    'ITEM_ID' => $singleItem['product_id'],
+                    'ITEM_NAME' => $singleItem['name'],
+                    'ITEM_QTY' => $singleItem['quantity'],
+                    'ITEM_COST' => $singleItem['subtotal'],
                 );
             }
 
             // Log the data
-            $this->logger->add('woocommerce_wc-aop_scheduler', 'Data to send : ' . json_encode($orderList, true));
+            $this->logger->add('woocommerce_wc-aop_scheduler', 'Data to send : ' . json_encode($orderList, JSON_UNESCAPED_SLASHES));
 
-            $this->send_data_to_server(json_encode($orderList, true));
+            $this->send_data_to_server(json_encode($orderList, JSON_UNESCAPED_SLASHES));
         }
-        
+
         /**
          * Send the complete order to server
          *
@@ -110,26 +108,30 @@ if (!class_exists('WC_AOP_Order')) :
          * @param string $data
          * @return void
          */
-        public function send_data_to_server($data) {
+        public function send_data_to_server($data)
+        {
 
             // Perform the POST request to external api based on user preference in settings
-            $url = get_option('woocommerce_wc-aop_settings')['url'];            
-            $response = wp_remote_post( $url, array(
+            $url = get_option('woocommerce_wc-aop_settings')['url'];
+            $response = wp_remote_post(
+                $url,
+                array(
                     'method'      => 'POST',
                     'timeout'     => 45,
                     'redirection' => 5,
                     'httpversion' => '1.0',
                     'blocking'    => true,
                     'headers'     => array(),
-                    'body'        => array('origin' => get_site_url( null, '', 'https' ), 'data'  => $data),
-                    'cookies'     => array()
+                    'body'        => array('origin' => get_site_url(null, '', 'https'), 'data'  => $data),
+                    'cookies'     => array(),
+                    'sslverify' => false,
                 )
             );
-            
+
             // Check the response, is it error?
-            if ( is_wp_error( $response ) ) {
+            if (is_wp_error($response)) {
                 $error_message = $response->get_error_message();
-                $this->logger->add('woocommerce_wc-aop_scheduler', "Something went wrong : $error_message");                
+                $this->logger->add('woocommerce_wc-aop_scheduler', "Something went wrong : $error_message");
             } else {
                 $this->logger->add('woocommerce_wc-aop_scheduler', "Response : " . json_encode($response, true));
             }
@@ -142,15 +144,16 @@ if (!class_exists('WC_AOP_Order')) :
          * @param string $url
          * @return string
          */
-        private function get_domain($url) {
-          $pieces = parse_url($url);
-          $domain = isset($pieces['host']) ? $pieces['host'] : $pieces['path'];
-          
-          if (preg_match('/(?P<domain>[a-z0-9][a-z0-9\-]{1,63}\.[a-z\.]{2,6})$/i', $domain, $regs)) {
-            return strstr( $regs['domain'], '.', true );
-          }
+        private function get_domain($url)
+        {
+            $pieces = parse_url($url);
+            $domain = isset($pieces['host']) ? $pieces['host'] : $pieces['path'];
 
-          return false;
+            if (preg_match('/(?P<domain>[a-z0-9][a-z0-9\-]{1,63}\.[a-z\.]{2,6})$/i', $domain, $regs)) {
+                return strstr($regs['domain'], '.', true);
+            }
+
+            return false;
         }
     }
 

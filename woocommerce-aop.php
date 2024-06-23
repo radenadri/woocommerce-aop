@@ -35,7 +35,7 @@ if (!class_exists('WC_AOP')) :
         public function init()
         {
             $aop_enabled = get_option('woocommerce_wc-aop_settings')['enabled'];
-            
+
             // Checks if WooCommerce is installed.
             if (class_exists('WC_Integration')) {
 
@@ -45,11 +45,10 @@ if (!class_exists('WC_AOP')) :
                 // Register the integration.
                 add_filter('woocommerce_integrations', array($this, 'add_integration'));
 
-                if ( $aop_enabled == 'yes' ) {
+                if ($aop_enabled == 'yes') {
                     include_once 'includes/class-wc-aop-order.php';
                     new WC_AOP_Order;
                 }
-                
             } else {
                 WC_Admin_Settings::add_error(esc_html__('Please enable woocommerce to activate this plugin!', 'woocommerce-integration-demo'));
             }
