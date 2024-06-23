@@ -77,9 +77,9 @@ if (!class_exists('WC_AOP_Order')) :
                 $this->logger->add('woocommerce_wc-aop_scheduler', 'Item : ' . json_encode($singleItem, JSON_UNESCAPED_SLASHES));
 
                 if ($singleItem['variation_id']) {
-                    $product = new WC_Product($singleItem['variation_id']);
+                    $product = wc_get_product($singleItem['variation_id']);
                 } else {
-                    $product = new WC_Product($singleItem['product_id']);
+                    $product = wc_get_product($singleItem['product_id']);
                 }
 
                 $orderList[] = array(
