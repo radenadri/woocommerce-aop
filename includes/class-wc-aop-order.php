@@ -66,7 +66,7 @@ if (!class_exists('WC_AOP_Order')) :
         public function process_processing_order($order_id)
         {
             // Get the order based on order_id
-            $order = new WC_Order($order_id);
+            $order = wc_get_order($order_id);
 
             // Get all the order list and make the data
             $itemsList = array_map(function ($item) {
