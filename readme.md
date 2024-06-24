@@ -15,3 +15,7 @@ WooCommerce plugin to process completed orders for data processing.
 
 ## 1.0.0
 * Initial release
+
+## 1.1.0
+* Add HPOS compatibility
+* Modify return value
