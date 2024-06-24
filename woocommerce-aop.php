@@ -4,7 +4,7 @@
  * Plugin Name: WooCommerce Automate Order Process
  * Plugin URI: https://github.com/radenadri
  * Description: Create scheduler for submit completed orders..
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: Adriana Eka Prayudha
  * Author URI: https://radenadri.github.io
  * License: GPL-2.0+
@@ -27,6 +27,11 @@ if (!class_exists('WC_AOP')) :
         public function __construct()
         {
             add_action('plugins_loaded', array($this, 'init'));
+            add_action('before_woocommerce_init', function () {
+                if (class_exists(\Automattic\WooCommerce\Utilities\FeaturesUtil::class)) {
+                    \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility('custom_order_tables', __FILE__, true);
+                }
+            });
         }
 
         /**
